@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, ChatMemberUpdated, URLInputFile
+from aiogram.types import Message, ChatMemberUpdated
 from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, KICKED, LEFT, MEMBER
 
 KYIV_TZ = ZoneInfo("Europe/Kyiv")
@@ -59,7 +59,6 @@ def today() -> str:
 
 
 def format_user(member: dict, in_chat: bool = True) -> str:
-    """Якщо in_chat=False — показуємо ім'я без тегу, щоб не турбувати людину."""
     if in_chat and member.get("username"):
         return f"@{member['username']}"
     return member.get("first_name", "Невідомий")
@@ -71,7 +70,6 @@ def get_members(chat_id: int) -> list[dict]:
 
 
 def is_in_chat(chat_id: int, user_id: int) -> bool:
-    """Перевіряє чи людина досі в пулі (=в чаті)."""
     members = get_members(chat_id)
     return any(m["id"] == user_id for m in members)
 
@@ -88,7 +86,6 @@ def remove_member(chat_id: int, user_id: int) -> dict | None:
 
 
 def plural_raz(n: int) -> str:
-    """Правильний відмінок: раз / рази / разів."""
     if 11 <= n % 100 <= 19:
         return "разів"
     r = n % 10
@@ -149,7 +146,6 @@ async def on_member_left(event: ChatMemberUpdated):
 
     removed = remove_member(event.chat.id, user.id)
     if removed:
-        # Показуємо ім'я без тегу — людина вже не в чаті
         name = format_user(removed, in_chat=False)
         await event.bot.send_message(
             event.chat.id,
@@ -185,6 +181,8 @@ async def router(message: Message):
         await cmd_potuzhnyk(message)
     elif cmd == "/stats":
         await cmd_stats(message)
+    elif cmd == "/reset":
+        await cmd_reset(message)
     elif cmd in ("/start", "/help"):
         await cmd_help(message)
 
@@ -205,6 +203,8 @@ async def cmd_help(message: Message):
         "💪 /potuzhnyk — обрати потужніка дня\n\n"
         "<b>Статистика:</b>\n"
         "📊 /stats — хто скільки разів вигравав\n\n"
+        "<b>Адмін:</b>\n"
+        "🗑 /reset — очистити всі дані чату (тільки адміни)\n\n"
         "<i>Напиши /reg щоб потрапити в розіграш!\n"
         "Якщо вийдеш з чату — автоматично видалишся з пулу.</i>",
         parse_mode="HTML"
@@ -327,7 +327,8 @@ async def cmd_pidor(message: Message):
         f"<i>{format_user(winner)} підор підор підорок вже {pidor_str} 👑</i>",
         parse_mode="HTML"
     )
-    await message.answer_animation(URLInputFile(random.choice(PIDOR_GIFS)))
+    # ✅ Надсилаємо гіфку як animation через URL-рядок
+    await message.answer_animation(animation=random.choice(PIDOR_GIFS))
 
 
 async def cmd_potuzhnyk(message: Message):
@@ -384,7 +385,36 @@ async def cmd_potuzhnyk(message: Message):
         f"<i>{format_user(winner)} напотужнічав вже {potuzhnyk_str} 👑</i>",
         parse_mode="HTML"
     )
-    await message.answer_animation(URLInputFile(random.choice(POTUZHNYK_GIFS)))
+    # ✅ Надсилаємо гіфку як animation через URL-рядок
+    await message.answer_animation(animation=random.choice(POTUZHNYK_GIFS))
+
+
+async def cmd_reset(message: Message):
+    """Очищає всі дані поточного чату. Тільки для адмінів."""
+    chat_id = message.chat.id
+    user = message.from_user
+
+    # Перевірка прав адміна
+    member = await message.bot.get_chat_member(chat_id, user.id)
+    if member.status not in ("administrator", "creator"):
+        await message.reply("❌ Ця команда тільки для адміністраторів!")
+        return
+
+    data = load_data()
+
+    # Видаляємо всі ключі що належать цьому чату
+    keys_to_delete = [k for k in data.keys() if str(chat_id) in k]
+    for k in keys_to_delete:
+        del data[k]
+
+    save_data(data)
+
+    await message.reply(
+        f"🗑 <b>Дані чату очищено!</b>\n\n"
+        f"Видалено ключів: <b>{len(keys_to_delete)}</b>\n"
+        f"Учасники, статистика та результати дня — все скинуто.",
+        parse_mode="HTML"
+    )
 
 
 async def cmd_stats(message: Message):
@@ -405,11 +435,10 @@ async def cmd_stats(message: Message):
     potuzhnyk_board = sorted(players, key=lambda x: -x.get("potuzhnyk", 0))
 
     def fmt_stats_name(p: dict, chat_id: int) -> str:
-        """В статистиці показуємо тег тільки якщо людина досі в чаті."""
         uid = next((k for k, v in data.get(f"stats_{chat_id}", {}).items() if v == p), None)
         if uid and is_in_chat(chat_id, int(uid)):
-            return p["name"]  # name вже містить @ якщо є username
-        return p.get("first_name", p["name"])  # без тегу
+            return p["name"]
+        return p.get("first_name", p["name"])
 
     pidor_lines = [
         f"{medal(i)} {fmt_stats_name(p, chat_id)} — <b>{p['pidor']}</b> {plural_raz(p['pidor'])}"
@@ -443,6 +472,7 @@ async def main():
         types.BotCommand(command="potuzhnyk",  description="Обрати потужніка дня 💪"),
         types.BotCommand(command="stats",      description="Статистика групи 📊"),
         types.BotCommand(command="members",    description="Список учасників 👥"),
+        types.BotCommand(command="reset",      description="Очистити дані чату 🗑 (адміни)"),
         types.BotCommand(command="help",       description="Допомога ❓"),
     ])
 
