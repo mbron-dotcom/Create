@@ -181,8 +181,6 @@ async def router(message: Message):
         await cmd_potuzhnyk(message)
     elif cmd == "/stats":
         await cmd_stats(message)
-    elif cmd == "/reset":
-        await cmd_reset(message)
     elif cmd in ("/start", "/help"):
         await cmd_help(message)
 
@@ -203,8 +201,6 @@ async def cmd_help(message: Message):
         "💪 /potuzhnyk — обрати потужніка дня\n\n"
         "<b>Статистика:</b>\n"
         "📊 /stats — хто скільки разів вигравав\n\n"
-        "<b>Адмін:</b>\n"
-        "🗑 /reset — очистити всі дані чату (тільки адміни)\n\n"
         "<i>Напиши /reg щоб потрапити в розіграш!\n"
         "Якщо вийдеш з чату — автоматично видалишся з пулу.</i>",
         parse_mode="HTML"
@@ -389,33 +385,6 @@ async def cmd_potuzhnyk(message: Message):
     await message.answer_animation(animation=random.choice(POTUZHNYK_GIFS))
 
 
-async def cmd_reset(message: Message):
-    """Очищає всі дані поточного чату. Тільки для адмінів."""
-    chat_id = message.chat.id
-    user = message.from_user
-
-    # Перевірка прав адміна
-    member = await message.bot.get_chat_member(chat_id, user.id)
-    if member.status not in ("administrator", "creator"):
-        await message.reply("❌ Ця команда тільки для адміністраторів!")
-        return
-
-    data = load_data()
-
-    # Видаляємо всі ключі що належать цьому чату
-    keys_to_delete = [k for k in data.keys() if str(chat_id) in k]
-    for k in keys_to_delete:
-        del data[k]
-
-    save_data(data)
-
-    await message.reply(
-        f"🗑 <b>Дані чату очищено!</b>\n\n"
-        f"Видалено ключів: <b>{len(keys_to_delete)}</b>\n"
-        f"Учасники, статистика та результати дня — все скинуто.",
-        parse_mode="HTML"
-    )
-
 
 async def cmd_stats(message: Message):
     chat_id = message.chat.id
@@ -472,7 +441,6 @@ async def main():
         types.BotCommand(command="potuzhnyk",  description="Обрати потужніка дня 💪"),
         types.BotCommand(command="stats",      description="Статистика групи 📊"),
         types.BotCommand(command="members",    description="Список учасників 👥"),
-        types.BotCommand(command="reset",      description="Очистити дані чату 🗑 (адміни)"),
         types.BotCommand(command="help",       description="Допомога ❓"),
     ])
 
