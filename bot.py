@@ -61,6 +61,46 @@ def remove_member(chat_id: int, user_id: int) -> dict | None:
 
 
 # ==============================
+# АВТО-РЕЄСТРАЦІЯ при вході
+# ==============================
+
+@dp.chat_member(ChatMemberUpdatedFilter(member_status_changed=MEMBER))
+async def on_member_joined(event: ChatMemberUpdated):
+    """Спрацьовує коли новий учасник приєднався до чату."""
+    user = event.new_chat_member.user
+    if user.is_bot:
+        return
+
+    chat_id = event.chat.id
+    data = load_data()
+    chat_key = f"members_{chat_id}"
+
+    if chat_key not in data:
+        data[chat_key] = []
+
+    members = data[chat_key]
+
+    if any(m["id"] == user.id for m in members):
+        return  # вже є в пулі
+
+    members.append({
+        "id": user.id,
+        "username": user.username or "",
+        "first_name": user.first_name or "",
+    })
+    data[chat_key] = members
+    save_data(data)
+
+    name = format_user({"id": user.id, "username": user.username or "", "first_name": user.first_name or ""})
+    await event.bot.send_message(
+        chat_id,
+        f"👋 Вітаємо <b>{user.first_name}</b>! Тебе автоматично додано в розіграш 🎲\n"
+        f"Всього учасників: <b>{len(members)}</b> 👥",
+        parse_mode="HTML"
+    )
+
+
+# ==============================
 # АВТО-ВИДАЛЕННЯ при виході/кіку
 # ==============================
 
