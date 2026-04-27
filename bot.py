@@ -304,7 +304,7 @@ async def cmd_pidor(message: Message):
         f"🍑 <b>Підор дня визначений!</b>\n\n"
         f"Сьогодні цей титул отримує — <b>{format_user(winner)}</b> 🏆\n\n"
         f"Вітаємо з «перемогою»! 🎉\n\n"
-        f"<i>Цей титул вже {pidor_str} 👑</i>",
+        f"<i>{format_user(winner)} підор підор підорок вже {pidor_str} 👑</i>",
         parse_mode="HTML"
     )
 
@@ -360,7 +360,7 @@ async def cmd_potuzhnyk(message: Message):
         f"💪 <b>Потужнік дня визначений!</b>\n\n"
         f"Сьогодні цей титул отримує — <b>{format_user(winner)}</b> 🌟\n\n"
         f"Потужно! Так тримати! 🔥\n\n"
-        f"<i>Цей титул вже {potuzhnyk_str} 👑</i>",
+        f"<i>{format_user(winner)} напотужнічав вже {potuzhnyk_str} 👑</i>",
         parse_mode="HTML"
     )
 
