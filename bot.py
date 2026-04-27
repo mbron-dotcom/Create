@@ -3,9 +3,9 @@ import random
 import json
 import os
 from datetime import date
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, ChatMemberUpdated
-from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, KICKED, LEFT, MEMBER, RESTRICTED
+from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, KICKED, LEFT, MEMBER
 
 # ==============================
 # НАЛАШТУВАННЯ
@@ -29,6 +29,7 @@ def load_data() -> dict:
 
 
 def save_data(data: dict):
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -37,8 +38,9 @@ def today() -> str:
     return str(date.today())
 
 
-def format_user(member: dict) -> str:
-    if member.get("username"):
+def format_user(member: dict, in_chat: bool = True) -> str:
+    """Якщо in_chat=False — показуємо ім'я без тегу, щоб не турбувати людину."""
+    if in_chat and member.get("username"):
         return f"@{member['username']}"
     return member.get("first_name", "Невідомий")
 
@@ -48,8 +50,13 @@ def get_members(chat_id: int) -> list[dict]:
     return data.get(f"members_{chat_id}", [])
 
 
+def is_in_chat(chat_id: int, user_id: int) -> bool:
+    """Перевіряє чи людина досі в пулі (=в чаті)."""
+    members = get_members(chat_id)
+    return any(m["id"] == user_id for m in members)
+
+
 def remove_member(chat_id: int, user_id: int) -> dict | None:
-    """Видаляє учасника з пулу. Повертає видаленого або None."""
     data = load_data()
     chat_key = f"members_{chat_id}"
     members = data.get(chat_key, [])
@@ -60,13 +67,24 @@ def remove_member(chat_id: int, user_id: int) -> dict | None:
     return found
 
 
+def plural_raz(n: int) -> str:
+    """Правильний відмінок: раз / рази / разів."""
+    if 11 <= n % 100 <= 19:
+        return "разів"
+    r = n % 10
+    if r == 1:
+        return "раз"
+    if 2 <= r <= 4:
+        return "рази"
+    return "разів"
+
+
 # ==============================
 # АВТО-РЕЄСТРАЦІЯ при вході
 # ==============================
 
 @dp.chat_member(ChatMemberUpdatedFilter(member_status_changed=MEMBER))
 async def on_member_joined(event: ChatMemberUpdated):
-    """Спрацьовує коли новий учасник приєднався до чату."""
     user = event.new_chat_member.user
     if user.is_bot:
         return
@@ -81,7 +99,7 @@ async def on_member_joined(event: ChatMemberUpdated):
     members = data[chat_key]
 
     if any(m["id"] == user.id for m in members):
-        return  # вже є в пулі
+        return
 
     members.append({
         "id": user.id,
@@ -91,7 +109,6 @@ async def on_member_joined(event: ChatMemberUpdated):
     data[chat_key] = members
     save_data(data)
 
-    name = format_user({"id": user.id, "username": user.username or "", "first_name": user.first_name or ""})
     await event.bot.send_message(
         chat_id,
         f"👋 Вітаємо <b>{user.first_name}</b>! Тебе автоматично додано в розіграш 🎲\n"
@@ -106,14 +123,14 @@ async def on_member_joined(event: ChatMemberUpdated):
 
 @dp.chat_member(ChatMemberUpdatedFilter(member_status_changed=KICKED | LEFT))
 async def on_member_left(event: ChatMemberUpdated):
-    """Спрацьовує коли учасника видалили або він сам вийшов."""
     user = event.old_chat_member.user
     if user.is_bot:
         return
 
     removed = remove_member(event.chat.id, user.id)
     if removed:
-        name = format_user(removed)
+        # Показуємо ім'я без тегу — людина вже не в чаті
+        name = format_user(removed, in_chat=False)
         await event.bot.send_message(
             event.chat.id,
             f"👋 <b>{name}</b> покинув чат — автоматично видалений з розіграшу.",
@@ -144,8 +161,8 @@ async def router(message: Message):
         await cmd_members(message)
     elif cmd == "/pidor":
         await cmd_pidor(message)
-    elif cmd == "/krasavchyk":
-        await cmd_krasavchyk(message)
+    elif cmd == "/potuzhnyk":
+        await cmd_potuzhnyk(message)
     elif cmd == "/stats":
         await cmd_stats(message)
     elif cmd in ("/start", "/help"):
@@ -165,7 +182,7 @@ async def cmd_help(message: Message):
         "👥 /members — список учасників\n\n"
         "<b>Розіграш:</b>\n"
         "🍑 /pidor — обрати підора дня\n"
-        "😎 /krasavchyk — обрати красавчика дня\n\n"
+        "💪 /potuzhnyk — обрати потужніка дня\n\n"
         "<b>Статистика:</b>\n"
         "📊 /stats — хто скільки разів вигравав\n\n"
         "<i>Напиши /reg щоб потрапити в розіграш!\n"
@@ -259,8 +276,8 @@ async def cmd_pidor(message: Message):
         )
         return
 
-    krasavchyk_id = day_data.get("krasavchyk", {}).get("id")
-    pool = [m for m in members if m["id"] != krasavchyk_id] or members
+    potuzhnyk_id = day_data.get("potuzhnyk", {}).get("id")
+    pool = [m for m in members if m["id"] != potuzhnyk_id] or members
     winner = random.choice(pool)
 
     day_data["pidor"] = {"id": winner["id"], "name": format_user(winner)}
@@ -271,10 +288,13 @@ async def cmd_pidor(message: Message):
         data[stats_key] = {}
     uid = str(winner["id"])
     if uid not in data[stats_key]:
-        data[stats_key][uid] = {"name": format_user(winner), "pidor": 0, "krasavchyk": 0}
+        data[stats_key][uid] = {"name": format_user(winner), "pidor": 0, "potuzhnyk": 0}
     data[stats_key][uid]["pidor"] += 1
     data[stats_key][uid]["name"] = format_user(winner)
     save_data(data)
+
+    pidor_count = data[stats_key][uid]["pidor"]
+    pidor_str = f"{pidor_count} {plural_raz(pidor_count)}"
 
     msg = await message.reply("🎲 Визначаємо підора дня...")
     await asyncio.sleep(1.5)
@@ -283,22 +303,23 @@ async def cmd_pidor(message: Message):
     await msg.edit_text(
         f"🍑 <b>Підор дня визначений!</b>\n\n"
         f"Сьогодні цей титул отримує — <b>{format_user(winner)}</b> 🏆\n\n"
-        f"Вітаємо з «перемогою»! 🎉",
+        f"Вітаємо з «перемогою»! 🎉\n\n"
+        f"<i>Цей титул вже {pidor_str} 👑</i>",
         parse_mode="HTML"
     )
 
 
-async def cmd_krasavchyk(message: Message):
+async def cmd_potuzhnyk(message: Message):
     chat_id = message.chat.id
     today_key = today()
     data = load_data()
     day_key = f"day_{chat_id}_{today_key}"
     day_data = data.get(day_key, {})
 
-    if "krasavchyk" in day_data:
+    if "potuzhnyk" in day_data:
         await message.reply(
-            f"😎 Красавчик дня вже обраний!\n\n"
-            f"Сьогодні це — <b>{day_data['krasavchyk']['name']}</b> 🌟",
+            f"💪 Потужнік дня вже обраний!\n\n"
+            f"Сьогодні це — <b>{day_data['potuzhnyk']['name']}</b> 🌟",
             parse_mode="HTML"
         )
         return
@@ -315,7 +336,7 @@ async def cmd_krasavchyk(message: Message):
     pool = [m for m in members if m["id"] != pidor_id] or members
     winner = random.choice(pool)
 
-    day_data["krasavchyk"] = {"id": winner["id"], "name": format_user(winner)}
+    day_data["potuzhnyk"] = {"id": winner["id"], "name": format_user(winner)}
     data[day_key] = day_data
 
     stats_key = f"stats_{chat_id}"
@@ -323,19 +344,23 @@ async def cmd_krasavchyk(message: Message):
         data[stats_key] = {}
     uid = str(winner["id"])
     if uid not in data[stats_key]:
-        data[stats_key][uid] = {"name": format_user(winner), "pidor": 0, "krasavchyk": 0}
-    data[stats_key][uid]["krasavchyk"] += 1
+        data[stats_key][uid] = {"name": format_user(winner), "pidor": 0, "potuzhnyk": 0}
+    data[stats_key][uid]["potuzhnyk"] += 1
     data[stats_key][uid]["name"] = format_user(winner)
     save_data(data)
 
-    msg = await message.reply("✨ Визначаємо красавчика дня...")
+    potuzhnyk_count = data[stats_key][uid]["potuzhnyk"]
+    potuzhnyk_str = f"{potuzhnyk_count} {plural_raz(potuzhnyk_count)}"
+
+    msg = await message.reply("✨ Визначаємо потужніка дня...")
     await asyncio.sleep(1.5)
     await msg.edit_text("🔄 Крутимо барабан...")
     await asyncio.sleep(1.5)
     await msg.edit_text(
-        f"😎 <b>Красавчик дня визначений!</b>\n\n"
+        f"💪 <b>Потужнік дня визначений!</b>\n\n"
         f"Сьогодні цей титул отримує — <b>{format_user(winner)}</b> 🌟\n\n"
-        f"Красавчик! Так тримати! 💪",
+        f"Потужно! Так тримати! 🔥\n\n"
+        f"<i>Цей титул вже {potuzhnyk_str} 👑</i>",
         parse_mode="HTML"
     )
 
@@ -355,22 +380,29 @@ async def cmd_stats(message: Message):
         return ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i + 1}."
 
     pidor_board = sorted(players, key=lambda x: -x.get("pidor", 0))
-    krasavchyk_board = sorted(players, key=lambda x: -x.get("krasavchyk", 0))
+    potuzhnyk_board = sorted(players, key=lambda x: -x.get("potuzhnyk", 0))
+
+    def fmt_stats_name(p: dict, chat_id: int) -> str:
+        """В статистиці показуємо тег тільки якщо людина досі в чаті."""
+        uid = next((k for k, v in data.get(f"stats_{chat_id}", {}).items() if v == p), None)
+        if uid and is_in_chat(chat_id, int(uid)):
+            return p["name"]  # name вже містить @ якщо є username
+        return p.get("first_name", p["name"])  # без тегу
 
     pidor_lines = [
-        f"{medal(i)} {p['name']} — <b>{p['pidor']}</b> раз(и)"
+        f"{medal(i)} {fmt_stats_name(p, chat_id)} — <b>{p['pidor']}</b> {plural_raz(p['pidor'])}"
         for i, p in enumerate(pidor_board) if p.get("pidor", 0) > 0
     ]
-    krasavchyk_lines = [
-        f"{medal(i)} {p['name']} — <b>{p['krasavchyk']}</b> раз(и)"
-        for i, p in enumerate(krasavchyk_board) if p.get("krasavchyk", 0) > 0
+    potuzhnyk_lines = [
+        f"{medal(i)} {fmt_stats_name(p, chat_id)} — <b>{p['potuzhnyk']}</b> {plural_raz(p['potuzhnyk'])}"
+        for i, p in enumerate(potuzhnyk_board) if p.get("potuzhnyk", 0) > 0
     ]
 
     text = "📊 <b>Статистика групи</b>\n\n"
     text += "🍑 <b>Топ підорів:</b>\n"
     text += ("\n".join(pidor_lines) if pidor_lines else "Поки що нікого") + "\n\n"
-    text += "😎 <b>Топ красавчиків:</b>\n"
-    text += "\n".join(krasavchyk_lines) if krasavchyk_lines else "Поки що нікого"
+    text += "💪 <b>Топ потужніків:</b>\n"
+    text += "\n".join(potuzhnyk_lines) if potuzhnyk_lines else "Поки що нікого"
 
     await message.reply(text, parse_mode="HTML")
 
@@ -381,8 +413,17 @@ async def cmd_stats(message: Message):
 
 async def main():
     bot = Bot(token=BOT_TOKEN)
-    # Підписуємось на оновлення учасників чату (потрібно для авто-видалення)
-    await bot.get_updates(allowed_updates=["message", "chat_member"])
+
+    await bot.set_my_commands([
+        types.BotCommand(command="reg",        description="Зареєструватись в розіграші"),
+        types.BotCommand(command="unreg",      description="Вийти з розіграшу"),
+        types.BotCommand(command="pidor",      description="Обрати підора дня 🍑"),
+        types.BotCommand(command="potuzhnyk",  description="Обрати потужніка дня 💪"),
+        types.BotCommand(command="stats",      description="Статистика групи 📊"),
+        types.BotCommand(command="members",    description="Список учасників 👥"),
+        types.BotCommand(command="help",       description="Допомога ❓"),
+    ])
+
     print("✅ Бот запущений!")
     await dp.start_polling(bot, allowed_updates=["message", "chat_member"])
 
