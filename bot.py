@@ -14,7 +14,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 dp = Dispatcher()
 
-DATA_FILE = "daily_results.json"
+DATA_FILE = "/app/data/daily_results.json"
 
 
 # ==============================
