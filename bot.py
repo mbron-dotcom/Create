@@ -10,8 +10,8 @@ from aiogram.types import Message
 # ==============================
 # НАЛАШТУВАННЯ
 # ==============================
-BOT_TOKEN = "8669212473:AAESSmCAnZMiu_-SL53eq8Q9CAGzTrcSEjA"  # Отримай у @BotFather
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 dp = Dispatcher()
 
 # Файл для зберігання результатів дня
