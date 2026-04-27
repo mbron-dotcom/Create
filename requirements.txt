@@ -1,1 +1,4 @@
 aiogram==3.7.0
+pydantic==2.5.3
+pydantic-core==2.14.6
+aiohttp==3.9.1
