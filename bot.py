@@ -2,10 +2,30 @@ import asyncio
 import random
 import json
 import os
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message, ChatMemberUpdated
+from aiogram.types import Message, ChatMemberUpdated, URLInputFile
 from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, KICKED, LEFT, MEMBER
+
+KYIV_TZ = ZoneInfo("Europe/Kyiv")
+
+PIDOR_GIFS = [
+    "https://media.giphy.com/media/jF18UtxYIwc6HzajSf/giphy.gif",
+    "https://media.giphy.com/media/iRJaqL4fd5sUd88XfN/giphy.gif",
+    "https://media.giphy.com/media/G58JDn4zHh9zvVDpkh/giphy.gif",
+    "https://media.giphy.com/media/fFI1kP1IP3qCtJLX1B/giphy.gif",
+    "https://media.giphy.com/media/UbNcN7UpHDzVcq3acQ/giphy.gif",
+]
+
+POTUZHNYK_GIFS = [
+    "https://media.giphy.com/media/CTFiskXOiGXInGGoL2/giphy.gif",
+    "https://media.giphy.com/media/gZvWIiFBmvg6WgLNxY/giphy.gif",
+    "https://media.giphy.com/media/AsgdhlgjXnSH07Uqm4/giphy.gif",
+    "https://media.giphy.com/media/xA1uUh8Olr9Y7Dh7hr/giphy.gif",
+    "https://media.giphy.com/media/hauNthjEzJg6HjAex7/giphy.gif",
+    "https://media.giphy.com/media/tn3wI8RtNFhQfeOhUg/giphy.gif",
+]
 
 # ==============================
 # НАЛАШТУВАННЯ
@@ -35,7 +55,7 @@ def save_data(data: dict):
 
 
 def today() -> str:
-    return str(date.today())
+    return datetime.now(KYIV_TZ).strftime("%Y-%m-%d")
 
 
 def format_user(member: dict, in_chat: bool = True) -> str:
@@ -307,6 +327,7 @@ async def cmd_pidor(message: Message):
         f"<i>{format_user(winner)} підор підор підорок вже {pidor_str} 👑</i>",
         parse_mode="HTML"
     )
+    await message.answer_animation(URLInputFile(random.choice(PIDOR_GIFS)))
 
 
 async def cmd_potuzhnyk(message: Message):
@@ -363,6 +384,7 @@ async def cmd_potuzhnyk(message: Message):
         f"<i>{format_user(winner)} напотужнічав вже {potuzhnyk_str} 👑</i>",
         parse_mode="HTML"
     )
+    await message.answer_animation(URLInputFile(random.choice(POTUZHNYK_GIFS)))
 
 
 async def cmd_stats(message: Message):
