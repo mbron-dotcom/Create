@@ -19,12 +19,12 @@ PIDOR_GIFS = [
 ]
 
 POTUZHNYK_GIFS = [
-    "https://media.giphy.com/media/CTFiskXOiGXInGGoL2/giphy.gif",
-    "https://media.giphy.com/media/gZvWIiFBmvg6WgLNxY/giphy.gif",
-    "https://media.giphy.com/media/AsgdhlgjXnSH07Uqm4/giphy.gif",
-    "https://media.giphy.com/media/xA1uUh8Olr9Y7Dh7hr/giphy.gif",
-    "https://media.giphy.com/media/hauNthjEzJg6HjAex7/giphy.gif",
-    "https://media.giphy.com/media/tn3wI8RtNFhQfeOhUg/giphy.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno1.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno2.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno3.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno4.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno5.gif",
+    "https://raw.githubusercontent.com/mbron-dotcom/Create/main/potuzhno6.gif",
 ]
 
 # ==============================
